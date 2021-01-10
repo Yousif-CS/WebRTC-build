@@ -78,7 +78,7 @@ else()
 endif()
 
 set(webrtc_gen cd src && gn gen ${CMAKE_BINARY_DIR}/src/out/${CMAKE_BUILD_TYPE} 
-		--args='${BUILD_TYPE} ${GN_ARGS} use_rtti=true rtc_include_tests=false rtc_enable_protobuf=false use_custom_libcxx=false use_custom_libcxx_for_host=false')
+		--args='${BUILD_TYPE} ${GN_ARGS} use_rtti=true rtc_include_tests=false rtc_enable_protobuf=false use_custom_libcxx=false use_custom_libcxx_for_host=false rtc_include_pulse_audio=false use_x11=false is_component_build=false enable_dsyms=true')
 
 add_custom_command(
 		OUTPUT ${CMAKE_BINARY_DIR}/src/out/${CMAKE_BUILD_TYPE}/all
