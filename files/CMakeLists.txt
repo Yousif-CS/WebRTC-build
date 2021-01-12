@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.11)
 
-project(WebRTC)
+project(WebRTC VERSION 0.1.1)
 
 include(CMakePackageConfigHelpers)
 
@@ -80,7 +80,7 @@ else()
 endif()
 
 set(webrtc_gen cd src && gn gen ${CMAKE_BINARY_DIR}/src/out/${CMAKE_BUILD_TYPE} 
-		--args='${BUILD_TYPE} ${GN_ARGS} use_rtti=true rtc_include_tests=false rtc_enable_protobuf=false use_custom_libcxx=false use_custom_libcxx_for_host=false rtc_include_pulse_audio=false use_x11=false is_component_build=false enable_dsyms=true')
+		--args='${BUILD_TYPE} ${GN_ARGS} use_rtti=true rtc_include_tests=false rtc_enable_protobuf=false use_custom_libcxx=false use_custom_libcxx_for_host=false rtc_include_pulse_audio=false use_x11=false is_component_build=false enable_dsyms=true rtc_exclude_audio_processing_module=true')
 
 add_custom_command(
 		OUTPUT ${CMAKE_BINARY_DIR}/src/out/${CMAKE_BUILD_TYPE}/all
@@ -199,42 +199,101 @@ endforeach()
 
 # Creating a target to install as a package
 
-# set(webrtc_lib_file ${CMAKE_BUILD_ROOT}/obj/libwebrtc.a)
-# 
-# add_library(webrtc STATIC IMPORTED)
-# 
-# set_target_properties(webrtc
-# 		PROPERTIES
-# 		IMPORTED_LOCATION ${webrtc_lib_file}
-# 		INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_BINARY_DIR}/src
-# 		GENERATED true
-# )
-# 
-# message(STATUS ${webrtc})
-# install(TARGETS webrtc
-# 	EXPORT WebrtcTargets
-# 	LIBRARY DESTINATION lib
-# 	ARCHIVE DESTINATION lib
-# 	RUNTIME DESTINATION bin
-# 	INCLUDES DESTINATION include/webrtc
-# )
-# 
-# install(
-# 	EXPORT WebrtcTargets
-# 	FILE WebrtcTargets.cmake
-# 	NAMESPACE webrtc::
-# 	DESTINATION lib/cmake/webrtc
-# )
-# 
-# configure_package_config_file(
-# 	${CMAKE_CURRENT_SOURCE_DIR}/Config.cmake.in
-# 	"${CMAKE_CURRENT_BINARY_DIR}/WebRTCConfig.cmake"
-# 	INSTALL_DESTINATION lib/cmake/webrtc
-# )
-# 
-# install(
-# 	FILES
-# 	"${CMAKE_CURRENT_BINARY_DIR}/WebRTCConfig.cmake"
-# 	"${CMAKE_CURRENT_SOURCE_DIR}/WebRTCConfigVersion.cmake"
-# 	DESTINATION lib/cmake/webrtc
-# )
+# Getting the object files required for the library
+
+set(OBJ_EXT "o")
+
+if (WIN32)
+	set(OBJ_EXT "obj")
+endif()
+
+file(
+	GLOB_RECURSE OBJ_FILES
+# 	${WEBRTC_BUILD_ROOT}/obj/testing/*.${OBJ_EXT}
+# 	${WEBRTC_BUILD_ROOT}/obj/third_party/*.${OBJ_EXT}
+# 	${WEBRTC_BUILD_ROOT}/obj/api/*.${OBJ_EXT}
+# 	${WEBRTC_BUILD_ROOT}/obj/rtc_base/*.${OBJ_EXT}
+# 	${WEBRTC_BUILD_ROOT}/obj/modules/*.${OBJ_EXT}
+# 	${WEBRTC_BUILD_ROOT}/obj/pc/*.${OBJ_EXT}
+# 	${WEBRTC_BUILD_ROOT}/obj/system_wrappers/*.${OBJ_EXT}
+# 	${WEBRTC_BUILD_ROOT}/obj/common_video/*.${OBJ_EXT}
+# 	${WEBRTC_BUILD_ROOT}/obj/common_audio/*.${OBJ_EXT}
+# 	${WEBRTC_BUILD_ROOT}/obj/media/*.${OBJ_EXT}
+# 	${WEBRTC_BUILD_ROOT}/obj/call/*.${OBJ_EXT}
+# 	${WEBRTC_BUILD_ROOT}/obj/p2p/*.${OBJ_EXT}
+# 	${WEBRTC_BUILD_ROOT}/obj/logging/*.${OBJ_EXT}
+# 	${WEBRTC_BUILD_ROOT}/obj/audio/*.${OBJ_EXT}
+	${WEBRTC_BUILD_ROOT}/obj/*.${OBJ_EXT}
+)
+
+# Exclude protobuf files because we externally supply them
+file(
+	GLOB_RECURSE OBJ_EXCLUDES
+	${WEBRTC_BUILD_ROOT}/obj/third_party/protobuf/*.${OBJ_EXT}
+)
+
+list(LENGTH OBJ_EXCLUDES OBJ_EXCLUDES_LEN)
+
+if (${OBJ_EXCLUDES_LEN} GREATER "0")
+	list(REMOVE_ITEM OBJ_FILES ${OBJ_EXCLUDES})
+endif()
+
+set_source_files_properties(${OBJ_FILES}
+	PROPERTIES
+	EXTERNAL_OBJECT true
+	GENERATED true
+)
+
+set(OBJECT_FILES "")
+
+foreach(ofile ${OBJ_FILES})
+	string(FIND ${ofile} "test" IS_TEST)
+	if (${IS_TEST} EQUAL -1)
+		# the object file is not a test
+		set(OBJECT_FILES ${OBJECT_FILES} ${ofile})
+	endif()
+endforeach()
+
+# Create the library with these object files
+add_library(webrtc STATIC ${OBJECT_FILES})
+
+set_target_properties(
+	webrtc PROPERTIES
+	LINKER_LANGUAGE C
+)
+
+install(TARGETS webrtc
+	EXPORT WebrtcTargets
+ 	LIBRARY DESTINATION lib
+ 	ARCHIVE DESTINATION lib
+ 	RUNTIME DESTINATION bin
+ 	INCLUDES DESTINATION include
+)
+ 
+install(
+ 	EXPORT WebrtcTargets
+ 	FILE WebrtcTargets.cmake
+ 	NAMESPACE ${PROJECT_NAME}::
+ 	DESTINATION lib/cmake/webrtc
+)
+ 
+configure_package_config_file(
+ 	${CMAKE_CURRENT_SOURCE_DIR}/Config.cmake.in
+ 	"${CMAKE_CURRENT_BINARY_DIR}/WebRTCConfig.cmake"
+ 	INSTALL_DESTINATION lib/cmake/webrtc
+)
+
+write_basic_package_version_file(
+	${CMAKE_CURRENT_BINARY_DIR}/WebRTCConfigVersion.cmake
+	VERSION ${PROJECT_VERSION}
+	COMPATIBILITY AnyNewerVersion
+)
+
+install(
+	FILES
+ 	"${CMAKE_CURRENT_BINARY_DIR}/WebRTCConfig.cmake"
+	"${CMAKE_CURRENT_BINARY_DIR}/WebRTCConfigVersion.cmake"
+ 	DESTINATION lib/cmake/webrtc
+)
+
+export(PACKAGE ${PROJECT_NAME})
